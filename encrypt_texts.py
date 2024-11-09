@@ -53,13 +53,13 @@ def save_encrypted_text(encrypted_text, a, b):
     """
     Зберігає зашифрований текст у файл та ключі у keys.txt.
     """
-    with open('encrypted.txt', 'w', encoding='utf-8') as file:
+    with open('encrypted_affine.txt', 'w', encoding='utf-8') as file:
         file.write(encrypted_text)
     
     with open('keys.txt', 'w', encoding='utf-8') as key_file:
         key_file.write(f"a={a}\nb={b}\n")
     
-    print(f"\nТекст зашифрований з використанням ключів a={a}, b={b} та збережений у encrypted.txt.")
+    print(f"\nТекст зашифрований з використанням ключів a={a}, b={b} та збережений у encrypted_affine.txt.")
     print("Ключі шифрування збережено у файлі keys.txt.")
 
 def main():

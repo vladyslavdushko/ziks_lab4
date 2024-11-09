@@ -2,159 +2,216 @@ import sys
 from math import gcd
 from collections import Counter
 import json
+import re
+import matplotlib.pyplot as plt  # Додано для побудови графіків
 
-# Український алфавіт (тільки малі літери)
-UKRAINIAN_ALPHABET = [
+# Український алфавіт
+LOWER_ALPHABET = [
     'а', 'б', 'в', 'г', 'ґ', 'д', 'е', 'є', 'ж', 'з',
     'и', 'і', 'ї', 'й', 'к', 'л', 'м', 'н', 'о', 'п',
     'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ',
     'ь', 'ю', 'я'
 ]
 
+UPPER_ALPHABET = [char.upper() for char in LOWER_ALPHABET]
+
+ALPHABET = LOWER_ALPHABET + UPPER_ALPHABET
+ALPHABET_DICT = {char: idx for idx, char in enumerate(ALPHABET)}
+
+m = len(LOWER_ALPHABET)  # Розмір алфавіту для модульних операцій (33)
+
 def clean_text(text):
     """
-    Очищає текст: перетворює у нижній регістр та видаляє всі символи,
-    крім літер українського алфавіту, пробілів та переносів рядків.
+    Очищає текст: видаляє всі символи, крім літер українського алфавіту,
+    пробілів та переносів рядків.
     """
-    allowed_chars = set(UKRAINIAN_ALPHABET + [' ', '\n'])
-    cleaned = ''.join(char for char in text if char.lower() in allowed_chars or char in [' ', '\n'])
+    allowed_chars = set(ALPHABET + [' ', '\n'])
+    cleaned = ''.join(char for char in text if char in allowed_chars)
     return cleaned
 
-def count_letters(text):
+def modinv(a, m):
     """
-    Підраховує кількість кожної літери в тексті, ігноруючи регістр.
+    Обчислює мультиплікативний обернений до a за модулем m.
     """
-    return Counter(char.lower() for char in text if char.lower() in UKRAINIAN_ALPHABET)
+    g, x, y = extended_gcd(a, m)
+    if g != 1:
+        return None
+    else:
+        return x % m
 
-def relative_frequency(counter):
+def extended_gcd(a, b):
     """
-    Обчислює відносну частоту появи кожної літери.
+    Розширений алгоритм Евкліда.
     """
-    total = sum(counter.values())
-    if total == 0:
-        return {letter: 0 for letter in UKRAINIAN_ALPHABET}
-    return {letter: count / total for letter, count in counter.items()}
+    if a == 0:
+        return (b, 0, 1)
+    else:
+        g, y, x = extended_gcd(b % a, a)
+        return (g, x - (b // a) * y, y)
 
-def affine_decrypt(cipher, a, b, alphabet):
+def affine_encrypt(plain, a, b):
     """
-    Дешифрує текст, зашифрований афінним шифром, зберігаючи регістр літер.
+    Шифрує текст за допомогою афінного шифру, зберігаючи регістр літер,
+    пробіли та переноси рядків.
     """
-    m = len(alphabet)
-    a_inv = None
-    for i in range(m):
-        if (a * i) % m == 1:
-            a_inv = i
-            break
+    encrypted = ''
+    for char in plain:
+        if char in LOWER_ALPHABET:
+            x = LOWER_ALPHABET.index(char)
+            y = (a * x + b) % m
+            encrypted_char = LOWER_ALPHABET[y]
+            encrypted += encrypted_char
+        elif char in UPPER_ALPHABET:
+            x = UPPER_ALPHABET.index(char)
+            y = (a * x + b) % m
+            encrypted_char = UPPER_ALPHABET[y]
+            encrypted += encrypted_char
+        else:
+            encrypted += char  # Залишаємо пробіли, переноси та інші символи без змін
+    return encrypted
+
+def affine_decrypt(cipher, a, b):
+    """
+    Дешифрує текст за допомогою афінного шифру, зберігаючи регістр літер,
+    пробіли та переноси рядків.
+    """
+    a_inv = modinv(a, m)
     if a_inv is None:
-        raise ValueError(f"Мультиплікативний обернений до a={a} не існує.")
-    
+        return None
     decrypted = ''
     for char in cipher:
-        if char.lower() in alphabet:
-            is_upper = char.isupper()
-            y = alphabet.index(char.lower())
+        if char in LOWER_ALPHABET:
+            y = LOWER_ALPHABET.index(char)
             x = (a_inv * (y - b)) % m
-            decrypted_char = alphabet[x]
-            if is_upper:
-                decrypted_char = decrypted_char.upper()
+            decrypted_char = LOWER_ALPHABET[x]
+            decrypted += decrypted_char
+        elif char in UPPER_ALPHABET:
+            y = UPPER_ALPHABET.index(char)
+            x = (a_inv * (y - b)) % m
+            decrypted_char = UPPER_ALPHABET[x]
             decrypted += decrypted_char
         else:
-            decrypted += char  # Залишаємо символи, які не в алфавіті (пробіли, перенос рядка, розділові знаки)
+            decrypted += char  # Залишаємо пробіли, переноси та інші символи без змін
     return decrypted
 
-def calculate_similarity(freq1, freq2):
+def get_letter_frequencies(text):
     """
-    Обчислює подібність між двома частотними словниками
-    за методом сумарної абсолютної різниці.
-    Чим менша подібність, тим більше схожість.
+    Підраховує частоти літер у тексті, ігноруючи пробіли та переноси рядків.
     """
-    similarity = 0.0
-    for letter in UKRAINIAN_ALPHABET:
-        similarity += abs(freq1.get(letter, 0) - freq2.get(letter, 0))
-    return similarity
+    frequencies = {}
+    total_letters = 0
+    for char in text:
+        if char in LOWER_ALPHABET:
+            char_lower = char
+        elif char in UPPER_ALPHABET:
+            char_lower = char.lower()
+        else:
+            continue  # Пропускаємо пробіли та інші символи
+        frequencies[char_lower] = frequencies.get(char_lower, 0) + 1
+        total_letters += 1
+    for char in frequencies:
+        frequencies[char] /= total_letters
+    return frequencies
 
-def affine_cracking(cipher, alphabet, freq_reference):
-    """
-    Виконує криптоаналіз зашифрованого тексту методом афінного шифру
-    з використанням брутфорс-підходу та частотного аналізу.
-    """
-    cipher_freq = relative_frequency(count_letters(cipher))
-    
-    best_similarity = float('inf')
-    best_keys = []
-    
-    # Перебираємо всі можливі ключі (a, b)
-    for a in range(1, len(alphabet)):
-        if gcd(a, len(alphabet)) != 1:
-            continue
-        for b in range(0, len(alphabet)):
-            try:
-                decrypted = affine_decrypt(cipher, a, b, alphabet)
-                decrypted_freq = relative_frequency(count_letters(decrypted))
-                similarity = calculate_similarity(decrypted_freq, freq_reference)
-                
-                if similarity < best_similarity:
-                    best_similarity = similarity
-                    best_keys = [(a, b, decrypted)]
-                elif similarity == best_similarity:
-                    best_keys.append((a, b, decrypted))
-            except Exception as e:
+def get_most_frequent_letters(frequencies, n=5):
+    return [item[0] for item in sorted(frequencies.items(), key=lambda item: item[1], reverse=True)[:n]]
+
+def find_possible_keys(alphabet, cipher_freq_letters, language_freq_letters):
+    m = len(LOWER_ALPHABET)
+    possible_keys = []
+    for y1_char in cipher_freq_letters:
+        for y2_char in cipher_freq_letters:
+            if y1_char == y2_char:
                 continue
-    
-    if best_keys:
-        print(f"\nЗнайдено ключів з найнижчою подібністю {best_similarity:.6f}:")
-        for (a, b, decrypted) in best_keys:
-            print(f"\nСпроба ключів a={a}, b={b}:")
-            print(decrypted)
-    else:
-        print("Не вдалося знайти можливі ключі.")
+            for x1_char in language_freq_letters:
+                for x2_char in language_freq_letters:
+                    if x1_char == x2_char:
+                        continue
+                    y1 = LOWER_ALPHABET.index(y1_char)
+                    y2 = LOWER_ALPHABET.index(y2_char)
+                    x1 = LOWER_ALPHABET.index(x1_char)
+                    x2 = LOWER_ALPHABET.index(x2_char)
+                    delta_x = (x1 - x2) % m
+                    delta_y = (y1 - y2) % m
+                    if gcd(delta_x, m) != 1:
+                        continue
+                    inv_delta_x = modinv(delta_x, m)
+                    if inv_delta_x is None:
+                        continue
+                    a_candidate = (delta_y * inv_delta_x) % m
+                    if gcd(a_candidate, m) != 1:
+                        continue
+                    b_candidate = (y1 - a_candidate * x1) % m
+                    possible_keys.append((a_candidate, b_candidate))
+    return possible_keys
 
-def perform_crypto_analysis(encrypted_file, alphabet, freq_reference):
+def contains_known_words(text, word_list):
     """
-    Виконує криптоаналіз для одного зашифрованого файлу.
+    Перевіряє, чи містить текст відомі слова з word_list.
     """
-    try:
-        with open(encrypted_file, 'r', encoding='utf-8') as file:
-            cipher = file.read()
-            cipher = clean_text(cipher)
-    except Exception as e:
-        print(f"Помилка при обробці файлу {encrypted_file}: {e}")
-        return
-    
-    print(f"\nКриптоаналіз файлу: {encrypted_file}")
-    affine_cracking(cipher, alphabet, freq_reference)
+    words = re.findall(r'\b\w+\b', text.lower())
+    for word in words:
+        if word in word_list:
+            return True
+    return False
+
+def plot_frequency_graph(frequencies):
+    """
+    Побудова графіку частот літер у тексті.
+    """
+    import matplotlib.pyplot as plt
+
+    letters = list(frequencies.keys())
+    freqs = list(frequencies.values())
+
+    # Сортуємо за алфавітом
+    letters, freqs = zip(*sorted(zip(letters, freqs)))
+
+    plt.figure(figsize=(12, 6))
+    plt.bar(letters, freqs, color='skyblue')
+    plt.xlabel('Літери')
+    plt.ylabel('Частота')
+    plt.title('Частоти літер у шифротексті')
+    plt.grid(axis='y', alpha=0.75)
+    plt.show()
 
 def main():
-    """
-    Основна функція, яка пропонує меню для виконання криптоаналізу.
-    """
-    print("Лабораторна робота №4: Криптоаналіз з Використанням Афінного Шифру")
-    print("Можливі дії:")
-    print("1. Криптоаналіз зашифрованих текстів")
-    print("2. Вихід")
-    
-    # Завантаження референсних частот українських літер
+    encrypted_file = 'encrypted_affine.txt'
     try:
-        with open('freq_reference.json', 'r', encoding='utf-8') as json_file:
-            freq_reference = json.load(json_file)
+        with open(encrypted_file, 'r', encoding='utf-8') as f:
+            cipher_text = f.read()
     except FileNotFoundError:
-        print("Файл freq_reference.json не знайдено. Будь ласка, виконайте завдання 1 з окремого корпусу текстів перед криптоаналізом.")
+        print(f"Файл {encrypted_file} не знайдено.")
         return
-    
-    while True:
-        choice = input("\nВиберіть дію (1-2): ")
-        
-        if choice == '1':
-            # Криптоаналіз зашифрованих текстів
-            print("\n--- Криптоаналіз зашифрованих текстів ---")
-            encrypted_file = 'encrypted.txt'  # Використовуємо один файл
-            perform_crypto_analysis(encrypted_file, UKRAINIAN_ALPHABET, freq_reference)
-        
-        elif choice == '2':
-            print("Вихід з програми.")
-            break
-        else:
-            print("Невірний вибір. Будь ласка, виберіть номер від 1 до 2.")
+
+    cleaned_cipher = clean_text(cipher_text)
+
+    cipher_frequencies = get_letter_frequencies(cleaned_cipher)
+    cipher_freq_letters = get_most_frequent_letters(cipher_frequencies, n=5)
+    print(f"Найчастіші літери в шифротексті: {cipher_freq_letters}")
+
+    # Побудова графіку частот
+    plot_frequency_graph(cipher_frequencies)
+
+    # Найчастіші літери української мови
+    language_freq_letters = ['о', 'а', 'і', 'е', 'н', 'т']
+
+    possible_keys = find_possible_keys(LOWER_ALPHABET, cipher_freq_letters, language_freq_letters)
+    print(f"Знайдено {len(possible_keys)} можливих ключів.")
+
+    # Завантажуємо список відомих слів (можна використовувати частотний словник української мови)
+    # Для прикладу, використовуємо короткий список
+    known_words = ['і', 'в', 'на', 'що', 'не', 'я', 'з', 'у', 'як', 'та']
+
+    for a, b in possible_keys:
+        decrypted_text = affine_decrypt(cipher_text, a, b)
+        if decrypted_text:
+            if contains_known_words(decrypted_text, known_words):
+                print(f"\nМожливий ключ: a = {a}, b = {b}")
+                print("Розшифрований текст:")
+                print(decrypted_text)
+                print('-' * 50)
+                # Можна додати перевірку на кількість відомих слів та вибрати найкращий варіант
 
 if __name__ == "__main__":
     main()
