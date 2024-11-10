@@ -3,6 +3,7 @@ from collections import Counter
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import json
 
 # Український алфавіт
 UKRAINIAN_ALPHABET = [
@@ -81,6 +82,14 @@ def create_bigrams_matrix(freq_dict):
     plt.tight_layout()
     plt.show()
 
+def save_frequencies_to_json(data, filename):
+    """
+    Зберігає частоти в JSON файл.
+    """
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    print(f"Частоти збережено у файлі '{filename}'.")
+
 def main(file_paths):
     """
     Основна функція для підрахунку та виводу частотних характеристик біграм.
@@ -100,6 +109,11 @@ def main(file_paths):
     
     freq_bigrams = relative_frequency_ngrams(combined_bigrams)
     
+    # Збереження топ-30 біграм у JSON
+    top_bigrams = get_most_frequent_ngrams(combined_bigrams, n=30)
+    top_bigrams_freq = {bg: freq for bg, freq in top_bigrams}
+    save_frequencies_to_json(top_bigrams_freq, 'top30_bigrams.json')
+    
     # Таблиця біграм, відсортована за спаданням частоти
     sorted_bigrams = sorted(freq_bigrams.items(), key=lambda item: item[1], reverse=True)
     df_bigrams = pd.DataFrame(sorted_bigrams, columns=['Біграм', 'Відносна частота'])
@@ -114,6 +128,12 @@ def main(file_paths):
     
     # Матриця частот біграм
     create_bigrams_matrix(freq_bigrams)
+
+def get_most_frequent_ngrams(counter, n=30):
+    """
+    Повертає список з n найчастіших n-грам.
+    """
+    return counter.most_common(n)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

@@ -3,6 +3,7 @@ from collections import Counter
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import json
 
 # Український алфавіт
 UKRAINIAN_ALPHABET = [
@@ -60,6 +61,36 @@ def plot_trigrams(freq_dict, title):
     plt.tight_layout()
     plt.show()
 
+def create_trigrams_matrix(freq_dict):
+    """
+    Створює теплову карту частот появи триграм.
+    """
+    letters = UKRAINIAN_ALPHABET
+    matrix = pd.DataFrame(0, index=letters, columns=letters)
+    
+    for trigram, freq in freq_dict.items():
+        if len(trigram) == 3:
+            first, second, third = trigram
+            if first in letters and second in letters and third in letters:
+                # Для теплової карти ми можемо розглядати тільки першу дві літери
+                matrix.at[first, second] += freq  # Або інший підхід для триграм
+                # Зверніть увагу: матриця для триграм складніша, тому для спрощення ми використовуємо тільки перші дві літери
+    plt.figure(figsize=(12,10))
+    sns.heatmap(matrix, annot=False, cmap='Greens')
+    plt.title('Матриця частот триграм')
+    plt.xlabel('Друга літера')
+    plt.ylabel('Перша літера')
+    plt.tight_layout()
+    plt.show()
+
+def save_frequencies_to_json(data, filename):
+    """
+    Зберігає частоти в JSON файл.
+    """
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    print(f"Частоти збережено у файлі '{filename}'.")
+
 def main(file_paths):
     """
     Основна функція для підрахунку та виводу частотних характеристик триграм.
@@ -79,6 +110,11 @@ def main(file_paths):
     
     freq_trigrams = relative_frequency_ngrams(combined_trigrams)
     
+    # Збереження топ-30 триграм у JSON
+    top_trigrams = get_most_frequent_ngrams(combined_trigrams, n=30)
+    top_trigrams_freq = {tg: freq for tg, freq in top_trigrams}
+    save_frequencies_to_json(top_trigrams_freq, 'top30_trigrams.json')
+    
     # Таблиця триграм, відсортована за спаданням частоти
     sorted_trigrams = sorted(freq_trigrams.items(), key=lambda item: item[1], reverse=True)
     df_trigrams = pd.DataFrame(sorted_trigrams, columns=['Триграм', 'Відносна частота'])
@@ -90,6 +126,15 @@ def main(file_paths):
     
     # Діаграма топ-30 триграм
     plot_trigrams(freq_trigrams, 'Відносна частота 30 найбільш імовірних триграм')
+    
+    # Матриця частот триграм
+    create_trigrams_matrix(freq_trigrams)
+
+def get_most_frequent_ngrams(counter, n=30):
+    """
+    Повертає список з n найчастіших n-грам.
+    """
+    return counter.most_common(n)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
